@@ -18,63 +18,95 @@ Requirements:
 * Vagrant 1.1
 
 The setup is based on multi-machine vagrant setup; there is 1 puppet master, and 1 or more agents. Both types have their own basebox:
-* [Master](https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-master.box)
-* [Agent](https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-agent.box)
+* Master: https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-master.box
+* Agent: https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-agent.box
 
 The puppet master has a fixed IP address: 192.168.111.111. You can add as many agents as you like, but be sure to give them a unique IP address in the 192.168.111.x range (.1 and .111 are taken). To do so, duplicate the agent block in the `Vagrantfile` and `site.pp` files.
+
+Configuration details for the puppet master:
+* Will autosign agent certificates
+* Storeconfigs is enabled
+* Fileserver is enabled, files served from local files folder (use `puppet:///files/<file_to_be_served>` in puppet plans), used fileserver.conf:
+
+	[files]
+	path /etc/puppetlabs/puppet/files
+	allow *
+
+* Hiera enabled, put hiera files in hieradata folder, used hiera.yaml config:
+
+```
+---
+:backends:
+  - yaml
+:hierarchy:
+  - %{::clientcert}
+  - %{::environment}
+  - common
+:yaml:
+  :datadir: /etc/puppetlabs/puppet/hieradata
+```
+
+## Templates
 
 Use the Vagrantfile and site.pp templates below and replace the following fields:
 * `<manifests_local_path>` - Local path for the puppet manifests. Must contain the site.pp file (see template below).
 * `<modules_local_path>` - Local path for the puppet modules. Will probably point to a local git repository
+* `<files_local_path>` - Local path for the puppet fileserving.
+* `<hieradata_local_path>` - Local path for the hiera data files.
 * `<agent_name>` - Name for the agent. Used within Vagrant (e.g. `vagrant provision agent_name`)
 * `<agent_hostname>` - Hostname for the agent. This links vagrant with puppet. Must be unique within this Vagrantfile.
 * `<agent_ipaddress>` - IP adress for the agent. Must be unique within all running VirtualBox images.
 
 ### Vagrantfile template
 
-	# -*- mode: ruby -*-
-	# vi: set ft=ruby :
-	Vagrant.configure("2") do |config|
-	  config.vm.define :master do |master|
-	    master.vm.hostname = "puppet"
-	    master.vm.box = "vagrant-centos-64-x86_64-pe-master"
-	    master.vm.box_url = "https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-master.box"
+```
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+  config.vm.define :master do |master|
+    master.vm.hostname = "puppet"
+    master.vm.box = "vagrant-centos-64-x86_64-pe-master"
+    master.vm.box_url = "https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-master.box"
 
-	    master.vm.network :private_network, ip: "192.168.111.111"
-	    master.vm.network :forwarded_port, guest: 443, host: 8443
+    master.vm.network :private_network, ip: "192.168.111.111"
+    master.vm.network :forwarded_port, guest: 443, host: 8443
 
-	    master.vm.synced_folder "<manifests_local_path>", "/etc/puppetlabs/puppet/manifests"
-	    master.vm.synced_folder "<modules_local_path>", "/etc/puppetlabs/puppet/modules"
-	  end
+    master.vm.synced_folder "<manifests_local_path>", "/etc/puppetlabs/puppet/manifests"
+    master.vm.synced_folder "<modules_local_path>", "/etc/puppetlabs/puppet/modules"
+    master.vm.synced_folder "<files_local_path>", "/etc/puppetlabs/puppet/files"
+    master.vm.synced_folder "<hieradata_local_path>", "/etc/puppetlabs/puppet/hieradata"
+  end
 
-	  config.vm.define :<agent_name> do |agent|
-	    agent.vm.hostname = "<agent_hostname>"
-	    agent.vm.box = "vagrant-centos-64-x86_64-pe-agent"
-	    agent.vm.box_url = "https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-agent.box"
+  config.vm.define :<agent_name> do |agent|
+    agent.vm.hostname = "<agent_hostname>"
+    agent.vm.box = "vagrant-centos-64-x86_64-pe-agent"
+    agent.vm.box_url = "https://dl.dropbox.com/u/23470422/vagrant-pe/vagrant-centos-64-x86_64-pe-agent.box"
 
-	    agent.vm.network :private_network, ip: "<agent_ipaddress>"
+    agent.vm.network :private_network, ip: "<agent_ipaddress>"
 
-	    agent.vm.provision :puppet_server do |agent_puppet|
-	      agent_puppet.options = "--test --waitforcert"
-	    end
-	  end
-	end
-
+    agent.vm.provision :puppet_server do |agent_puppet|
+      agent_puppet.options = "--test --waitforcert"
+    end
+  end
+end
+```
 
 ### site.pp template
 
-	# Make filebucket 'main' the default backup location for all File resources:
-	filebucket { 'main':
-	  server => 'puppet',
-	  path => false,
-	}
-	File { backup => 'main' }
+```
+# Make filebucket 'main' the default backup location for all File resources:
+filebucket { 'main':
+  server => 'puppet',
+  path => false,
+}
+File { backup => 'main' }
 
-	node default {}
+node default {}
 
-	node '<agent_hostname>' {
-	  ... resource declarations ...
-	}
+node '<agent_hostname>' {
+  ... resource declarations ...
+}
+```
 
 ## Caveats
 
@@ -86,5 +118,7 @@ This is because the agent will generate a new certificate when the box is recrea
 * Destroy and recreate the master as well
 * Revoke the old agent certificate on the puppet master and remove the certificate from the agent:
 
-	vagrant ssh master -c 'sudo puppet cert clean <agent_hostname>'
-	vagrant ssh agent -c 'sudo rm /etc/puppetlabs/puppet/ssl/certs/<agent_hostname>.pem'
+```
+vagrant ssh master -c 'sudo puppet cert clean <agent_hostname>'
+vagrant ssh agent -c 'sudo rm /etc/puppetlabs/puppet/ssl/certs/<agent_hostname>.pem'
+```

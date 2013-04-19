@@ -11,6 +11,8 @@ Vagrant.configure("2") do |config|
 
     master.vm.synced_folder "manifests", "/etc/puppetlabs/puppet/manifests"
     master.vm.synced_folder "modules", "/etc/puppetlabs/puppet/modules"
+    master.vm.synced_folder "files", "/etc/puppetlabs/puppet/files"
+    master.vm.synced_folder "hieradata", "/etc/puppetlabs/puppet/hieradata"
   end
 
   config.vm.define :agent do |agent|
