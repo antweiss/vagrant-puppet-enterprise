@@ -28,9 +28,11 @@ Configuration details for the puppet master:
 * Storeconfigs is enabled
 * Fileserver is enabled, files served from local files folder (use `puppet:///files/<file_to_be_served>` in puppet plans), used fileserver.conf:
 
-	[files]
-	path /etc/puppetlabs/puppet/files
-	allow *
+```
+[files]
+path /etc/puppetlabs/puppet/files
+allow *
+```
 
 * Hiera enabled, put hiera files in hieradata folder, used hiera.yaml config:
 
