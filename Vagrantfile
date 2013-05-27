@@ -4,7 +4,8 @@
 Vagrant.configure("2") do |config|
   config.vm.define :master do |master|
     master.vm.hostname = "puppet"
-    master.vm.box      = "vagrant-centos-64-x86_64-pe-master"
+    master.vm.box      = "centos-64-x86_64-minimal-pe-master"
+    master.vm.box_url  = "https://s3-eu-west-1.amazonaws.com/xebia-vm/vagrant-boxes/centos-64-x86_64-minimal-pe-master.box"
 
     master.vm.network :private_network, ip: "192.168.111.111"
     master.vm.network :forwarded_port, guest: 443, host: 8443
@@ -17,7 +18,8 @@ Vagrant.configure("2") do |config|
 
   config.vm.define :agent do |agent|
     agent.vm.hostname = "agent"
-    agent.vm.box      = "vagrant-centos-64-x86_64-pe-agent"
+    agent.vm.box      = "centos-64-x86_64-minimal-pe-agent"
+    agent.vm.box_url  = "https://s3-eu-west-1.amazonaws.com/xebia-vm/vagrant-boxes/centos-64-x86_64-minimal-pe-agent.box"
 
     agent.vm.network :private_network, ip: "192.168.111.222"
 
